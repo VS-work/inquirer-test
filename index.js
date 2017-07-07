@@ -2,45 +2,53 @@
 
 global.Promise = require('pinkie-promise');
 
-var spawn = require('child_process').spawn;
-var concat = require('concat-stream');
+const spawn = require('child_process').spawn;
+const concat = require('concat-stream');
+const path = require('path');
+let logger;
 
-module.exports = async function(cliPath, combo, options = {}) {
+module.exports = async function(rootPath, combo, options = {}) {
+  const loggerPath = path.resolve(rootPath, 'config/logger');
+  const cliPath = path.resolve(rootPath, 'index');
+  logger = require(loggerPath);
+
   const {waitBeforeStart = 1000} = options;
-  var proc = spawn('node', [cliPath], { stdio: null });
+  const proc = spawn('node', [cliPath], { stdio: null });
   proc.stdin.setEncoding('utf-8');
   proc.stdout.setEncoding('utf-8');
-
   return new Promise((resolve, reject) => {
-    return setTimeout(sendKeys(resolve, reject, {proc, combo, options}), waitBeforeStart);
+    return setTimeout(sendKeys(resolve, reject, {proc, cliPath, combo, options}), waitBeforeStart);
   });
 };
 
-function sendKeys(resolve, reject, {proc, combo, options: {defaultTimeout = 200}}) {
+function sendKeys(resolve, reject, {proc, combo, options: {defaultTimeout = 200, waitBeforeEnd = 1000}}) {
   return () => {
     let stepIndex = 0;
     const steps = [];
     steps[stepIndex] = '';
 
-    var loop = function(combo) {
+    const loop = function(combo) {
       if (combo.length > 0) {
         const {key, timeout} = typeof combo[0] === 'string' ? {key: combo[0], timeout: defaultTimeout} : combo[0];
         setTimeout(function() {
           proc.stdout.pause();
+          logger.debug(steps[stepIndex]);
           stepIndex++;
           steps[stepIndex] = '';
           proc.stdin.write(key);
           proc.stdout.resume();
-
           loop(combo.slice(1));
         }, timeout);
       } else {
-        proc.stdin.end();
+        setTimeout(() => {
+          proc.stdin.end();
+        }, waitBeforeEnd);
       }
     };
 
     loop(combo);
 
+    proc.stdin.on('error', reject);
     proc.stdout.on('data', function(line) {
       steps[stepIndex] += line;
     });

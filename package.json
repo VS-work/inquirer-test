@@ -20,6 +20,7 @@
   "license": "MIT",
   "dependencies": {
     "concat-stream": "^1.5.1",
+    "path": "^0.12.7",
     "pinkie-promise": "^2.0.0"
   },
   "devDependencies": {
